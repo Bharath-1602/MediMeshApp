@@ -1,0 +1,17 @@
+apiVersion: v2
+name: medimesh
+description: MediMesh — Hospital Management System Microservices Helm Chart
+type: application
+version: 1.1.0
+appVersion: "v1.1.0"
+keywords:
+  - medimesh
+  - hospital
+  - microservices
+  - kubernetes
+  - mongodb
+  - nfs
+  - gateway
+maintainers:
+  - name: Bharath
+home: https://github.com/bharath44623/MediMesh

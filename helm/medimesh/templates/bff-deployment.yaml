@@ -1,0 +1,73 @@
+# ════════════════════════════════════════════════════════════
+# MediMesh — BFF (Backend-For-Frontend) Service Deployment
+# ════════════════════════════════════════════════════════════
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.bff.name }}
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app: {{ .Values.bff.name }}
+    tier: backend
+spec:
+  replicas: {{ .Values.bff.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.bff.name }}
+      tier: backend
+  strategy:
+    type: {{ .Values.bff.strategy.type }}
+    rollingUpdate:
+      maxUnavailable: {{ .Values.bff.strategy.maxUnavailable }}
+      maxSurge: {{ .Values.bff.strategy.maxSurge }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.bff.name }}
+        tier: backend
+    spec:
+      containers:
+        - name: {{ .Values.bff.name }}
+          image: "{{ .Values.bff.image.repository }}:{{ .Values.bff.image.tag }}"
+          imagePullPolicy: {{ .Values.bff.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.bff.containerPort }}
+              name: http
+          env:
+            - name: PORT
+              value: {{ .Values.bff.containerPort | quote }}
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: medimesh-secrets
+                  key: JWT_SECRET
+            - name: NODE_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: medimesh-config
+                  key: NODE_ENV
+          envFrom:
+            - configMapRef:
+                name: medimesh-config
+          # ─── Health Probes ──────────────────────────────────
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.bff.readinessProbe.path }}
+              port: {{ .Values.bff.readinessProbe.port }}
+            initialDelaySeconds: {{ .Values.bff.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.bff.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.bff.readinessProbe.timeoutSeconds }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.bff.livenessProbe.path }}
+              port: {{ .Values.bff.livenessProbe.port }}
+            initialDelaySeconds: {{ .Values.bff.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.bff.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.bff.livenessProbe.timeoutSeconds }}
+          resources:
+            requests:
+              cpu: {{ .Values.bff.resources.requests.cpu | quote }}
+              memory: {{ .Values.bff.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.bff.resources.limits.cpu | quote }}
+              memory: {{ .Values.bff.resources.limits.memory | quote }}

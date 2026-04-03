@@ -1,0 +1,9 @@
+# ════════════════════════════════════════════════════════════
+# MediMesh — Kubernetes Namespace
+# ════════════════════════════════════════════════════════════
+# Namespace is created automatically by:
+#   helm install ... --create-namespace
+#
+# This template is intentionally left empty to avoid
+# "namespace already exists" conflicts.
+# ════════════════════════════════════════════════════════════

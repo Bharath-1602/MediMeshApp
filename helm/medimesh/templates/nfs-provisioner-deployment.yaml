@@ -1,0 +1,60 @@
+# ════════════════════════════════════════════════════════════
+# MediMesh — NFS Subdir External Provisioner Deployment
+# ════════════════════════════════════════════════════════════
+{{- if .Values.nfs.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.nfs.provisioner.name }}
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app: {{ .Values.nfs.provisioner.name }}
+    tier: storage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.nfs.provisioner.name }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.nfs.provisioner.name }}
+        tier: storage
+    spec:
+      serviceAccountName: {{ .Values.nfs.provisioner.name }}
+      containers:
+        - name: {{ .Values.nfs.provisioner.name }}
+          image: "{{ .Values.nfs.provisioner.image.repository }}:{{ .Values.nfs.provisioner.image.tag }}"
+          imagePullPolicy: {{ .Values.nfs.provisioner.image.pullPolicy }}
+          env:
+            # Must match the provisioner name in StorageClass
+            - name: PROVISIONER_NAME
+              value: {{ .Values.nfs.provisioner.provisionerName | quote }}
+            # ──────────────────────────────────────────────
+            # ⚠️  Set nfs.server.ip in values.yaml
+            # ──────────────────────────────────────────────
+            - name: NFS_SERVER
+              value: {{ .Values.nfs.server.ip | quote }}
+            - name: NFS_PATH
+              value: {{ .Values.nfs.server.path | quote }}
+          volumeMounts:
+            - name: nfs-client-root
+              mountPath: /persistentvolumes
+          resources:
+            requests:
+              cpu: {{ .Values.nfs.provisioner.resources.requests.cpu | quote }}
+              memory: {{ .Values.nfs.provisioner.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.nfs.provisioner.resources.limits.cpu | quote }}
+              memory: {{ .Values.nfs.provisioner.resources.limits.memory | quote }}
+      volumes:
+        - name: nfs-client-root
+          nfs:
+            # ──────────────────────────────────────────────
+            # ⚠️  Set nfs.server.ip in values.yaml
+            # ──────────────────────────────────────────────
+            server: {{ .Values.nfs.server.ip | quote }}
+            path: {{ .Values.nfs.server.path | quote }}
+{{- end }}

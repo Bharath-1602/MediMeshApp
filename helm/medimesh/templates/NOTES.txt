@@ -1,0 +1,56 @@
+# ════════════════════════════════════════════════════════════
+# MediMesh — NOTES.txt (Post-Install Instructions)
+# ════════════════════════════════════════════════════════════
+
+═══════════════════════════════════════════════════════════
+  🏥 MediMesh Helm Chart — Deployed Successfully!
+═══════════════════════════════════════════════════════════
+
+📦 Release:    {{ .Release.Name }}
+📁 Namespace:  {{ .Values.namespace.name }}
+🏷️  Version:    {{ .Chart.AppVersion }}
+
+═══════════════════════════════════════════════════════════
+  📋 DEPLOYED COMPONENTS
+═══════════════════════════════════════════════════════════
+
+  ✅ Namespace:           {{ .Values.namespace.name }}
+  ✅ ConfigMap:           medimesh-config
+  ✅ Secret:              medimesh-secrets
+  ✅ Frontend:            {{ .Values.frontend.name }} ({{ .Values.frontend.replicas }} replicas)
+  ✅ BFF:                 {{ .Values.bff.name }} ({{ .Values.bff.replicas }} replicas)
+  ✅ Backend Services:    9 microservices ({{ .Values.backendDefaults.replicas }} replicas each)
+  ✅ MongoDB:             {{ .Values.mongodb.name }} ({{ .Values.mongodb.replicas }}-node ReplicaSet)
+{{- if .Values.nfs.enabled }}
+  ✅ NFS Provisioner:     {{ .Values.nfs.provisioner.name }}
+  ✅ NFS StorageClass:    {{ .Values.nfs.storageClass.name }}
+{{- end }}
+{{- if .Values.gateway.enabled }}
+  ✅ Gateway:             {{ .Values.gateway.name }}
+  ✅ HTTPRoute:           {{ .Values.gateway.httpRoute.name }}
+{{- end }}
+{{- if .Values.hpa.enabled }}
+  ✅ HPA:                 {{ .Values.hpa.name }} ({{ .Values.hpa.minReplicas }}-{{ .Values.hpa.maxReplicas }} replicas)
+{{- end }}
+
+═══════════════════════════════════════════════════════════
+  🔧 POST-INSTALL STEPS
+═══════════════════════════════════════════════════════════
+
+  1. Wait for MongoDB pods to be ready:
+     kubectl get pods -n {{ .Values.namespace.name }} -l app={{ .Values.mongodb.name }} -w
+
+  2. Verify all pods are running:
+     kubectl get pods -n {{ .Values.namespace.name }}
+
+  3. Check services:
+     kubectl get svc -n {{ .Values.namespace.name }}
+
+{{- if .Values.nfs.enabled }}
+
+  ⚠️  IMPORTANT: Make sure to update nfs.server.ip in
+     values.yaml with your NFS server's private IP before
+     deploying to production!
+{{- end }}
+
+═══════════════════════════════════════════════════════════

@@ -1,0 +1,114 @@
+# ════════════════════════════════════════════════════════════
+# MediMesh — Frontend Deployment + ClusterIP Service
+# ════════════════════════════════════════════════════════════
+
+# ─── Deployment ───────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.frontend.name }}
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app: {{ .Values.frontend.name }}
+    tier: frontend
+spec:
+  replicas: {{ .Values.frontend.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Values.frontend.name }}
+      tier: frontend
+  strategy:
+    type: {{ .Values.frontend.strategy.type }}
+    rollingUpdate:
+      maxUnavailable: {{ .Values.frontend.strategy.maxUnavailable }}
+      maxSurge: {{ .Values.frontend.strategy.maxSurge }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.frontend.name }}
+        tier: frontend
+    spec:
+      containers:
+        # ─── Main Frontend Container ────────────────────────────
+        - name: {{ .Values.frontend.name }}
+          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.frontend.containerPort }}
+              name: http
+          env:
+            - name: BFF_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: medimesh-config
+                  key: BFF_SERVICE_URL
+          # ─── Health Probes ──────────────────────────────────
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.frontend.readinessProbe.path }}
+              port: {{ .Values.frontend.readinessProbe.port }}
+            initialDelaySeconds: {{ .Values.frontend.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.frontend.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.frontend.readinessProbe.timeoutSeconds }}
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.frontend.livenessProbe.path }}
+              port: {{ .Values.frontend.livenessProbe.port }}
+            initialDelaySeconds: {{ .Values.frontend.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.frontend.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.frontend.livenessProbe.timeoutSeconds }}
+          volumeMounts:
+            - name: nginx-logs
+              mountPath: /var/log/nginx
+          resources:
+            requests:
+              cpu: {{ .Values.frontend.resources.requests.cpu | quote }}
+              memory: {{ .Values.frontend.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.frontend.resources.limits.cpu | quote }}
+              memory: {{ .Values.frontend.resources.limits.memory | quote }}
+        # ─── Sidecar: Log Aggregator ──────────────────────────
+        - name: log-sidecar
+          image: {{ .Values.frontend.sidecar.image }}
+          command:
+            - sh
+            - -c
+            - |
+              echo "Starting nginx log sidecar..."
+              tail -F /var/log/nginx/access.log 2>/dev/null &
+              tail -F /var/log/nginx/error.log 2>/dev/null &
+              wait
+          volumeMounts:
+            - name: nginx-logs
+              mountPath: /var/log/nginx
+          resources:
+            requests:
+              cpu: {{ .Values.frontend.sidecar.resources.requests.cpu | quote }}
+              memory: {{ .Values.frontend.sidecar.resources.requests.memory | quote }}
+            limits:
+              cpu: {{ .Values.frontend.sidecar.resources.limits.cpu | quote }}
+              memory: {{ .Values.frontend.sidecar.resources.limits.memory | quote }}
+      volumes:
+        - name: nginx-logs
+          emptyDir: {}
+
+---
+# ─── ClusterIP Service (Internal — routed via kGateway) ────
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.frontend.service.name }}
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app: {{ .Values.frontend.name }}
+    tier: frontend
+spec:
+  type: {{ .Values.frontend.service.type }}
+  selector:
+    app: {{ .Values.frontend.name }}
+    tier: frontend
+  ports:
+    - port: {{ .Values.frontend.service.port }}
+      targetPort: {{ .Values.frontend.service.targetPort }}
+      protocol: TCP
+      name: http

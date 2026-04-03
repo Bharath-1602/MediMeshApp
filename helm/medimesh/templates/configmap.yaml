@@ -1,0 +1,30 @@
+# ════════════════════════════════════════════════════════════
+# MediMesh — ConfigMap (Non-Sensitive Configuration)
+# ════════════════════════════════════════════════════════════
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: medimesh-config
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    app: medimesh
+    tier: config
+data:
+  # ─── Environment ────────────────────────────────────────
+  NODE_ENV: {{ .Values.config.nodeEnv | quote }}
+
+  # ─── MongoDB ────────────────────────────────────────────
+  MONGO_HOST: {{ .Values.config.mongoHost | quote }}
+  MONGO_PORT: {{ .Values.config.mongoPort | quote }}
+
+  # ─── Internal Service URLs (ClusterIP DNS) ──────────────
+  AUTH_SERVICE_URL: {{ .Values.config.serviceUrls.auth | quote }}
+  USER_SERVICE_URL: {{ .Values.config.serviceUrls.user | quote }}
+  DOCTOR_SERVICE_URL: {{ .Values.config.serviceUrls.doctor | quote }}
+  APPOINTMENT_SERVICE_URL: {{ .Values.config.serviceUrls.appointment | quote }}
+  VITALS_SERVICE_URL: {{ .Values.config.serviceUrls.vitals | quote }}
+  PHARMACY_SERVICE_URL: {{ .Values.config.serviceUrls.pharmacy | quote }}
+  AMBULANCE_SERVICE_URL: {{ .Values.config.serviceUrls.ambulance | quote }}
+  COMPLAINT_SERVICE_URL: {{ .Values.config.serviceUrls.complaint | quote }}
+  FORUM_SERVICE_URL: {{ .Values.config.serviceUrls.forum | quote }}
+  BFF_SERVICE_URL: {{ .Values.config.serviceUrls.bff | quote }}
