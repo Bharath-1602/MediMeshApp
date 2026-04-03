@@ -17,7 +17,7 @@ global:
   # NFS storage config
   storage:
     nfs:
-      server: "172.31.64.95"
+      server: "172.31.90.107"
       path: "/srv/nfs/medimesh"
       storageClass: nfs-dynamic-medimesh
 
