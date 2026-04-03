@@ -1,30 +1,23 @@
-# ════════════════════════════════════════════════════════════
-# MediMesh — ConfigMap (Non-Sensitive Configuration)
-# ════════════════════════════════════════════════════════════
+# Shared ConfigMap — cross-namespace service URLs
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: medimesh-config
-  namespace: {{ .Values.namespace.name }}
+  namespace: {{ .Values.global.namespaces.backend }}
   labels:
-    app: medimesh
-    tier: config
+    {{- include "medimesh.labels" . | nindent 4 }}
 data:
-  # ─── Environment ────────────────────────────────────────
-  NODE_ENV: {{ .Values.config.nodeEnv | quote }}
-
-  # ─── MongoDB ────────────────────────────────────────────
-  MONGO_HOST: {{ .Values.config.mongoHost | quote }}
-  MONGO_PORT: {{ .Values.config.mongoPort | quote }}
-
-  # ─── Internal Service URLs (ClusterIP DNS) ──────────────
-  AUTH_SERVICE_URL: {{ .Values.config.serviceUrls.auth | quote }}
-  USER_SERVICE_URL: {{ .Values.config.serviceUrls.user | quote }}
-  DOCTOR_SERVICE_URL: {{ .Values.config.serviceUrls.doctor | quote }}
-  APPOINTMENT_SERVICE_URL: {{ .Values.config.serviceUrls.appointment | quote }}
-  VITALS_SERVICE_URL: {{ .Values.config.serviceUrls.vitals | quote }}
-  PHARMACY_SERVICE_URL: {{ .Values.config.serviceUrls.pharmacy | quote }}
-  AMBULANCE_SERVICE_URL: {{ .Values.config.serviceUrls.ambulance | quote }}
-  COMPLAINT_SERVICE_URL: {{ .Values.config.serviceUrls.complaint | quote }}
-  FORUM_SERVICE_URL: {{ .Values.config.serviceUrls.forum | quote }}
-  BFF_SERVICE_URL: {{ .Values.config.serviceUrls.bff | quote }}
+  NODE_ENV: {{ .Values.global.environment | quote }}
+  MONGO_HOST: {{ .Values.global.mongo.host | quote }}
+  MONGO_PORT: {{ .Values.global.mongo.port | quote }}
+  {{- $ns := .Values.global.namespaces.backend }}
+  AUTH_SERVICE_URL: "http://medimesh-auth-svc.{{ $ns }}.svc.cluster.local:5001"
+  USER_SERVICE_URL: "http://medimesh-user-svc.{{ $ns }}.svc.cluster.local:5002"
+  DOCTOR_SERVICE_URL: "http://medimesh-doctor-svc.{{ $ns }}.svc.cluster.local:5003"
+  APPOINTMENT_SERVICE_URL: "http://medimesh-appointment-svc.{{ $ns }}.svc.cluster.local:5004"
+  VITALS_SERVICE_URL: "http://medimesh-vitals-svc.{{ $ns }}.svc.cluster.local:5005"
+  PHARMACY_SERVICE_URL: "http://medimesh-pharmacy-svc.{{ $ns }}.svc.cluster.local:5006"
+  AMBULANCE_SERVICE_URL: "http://medimesh-ambulance-svc.{{ $ns }}.svc.cluster.local:5007"
+  COMPLAINT_SERVICE_URL: "http://medimesh-complaint-svc.{{ $ns }}.svc.cluster.local:5008"
+  FORUM_SERVICE_URL: "http://medimesh-forum-svc.{{ $ns }}.svc.cluster.local:5009"
+  BFF_SERVICE_URL: "http://medimesh-bff-svc.{{ $ns }}.svc.cluster.local:5010"

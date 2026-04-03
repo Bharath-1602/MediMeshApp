@@ -1,0 +1,114 @@
+# Allow: Backend → Database (backend services can reach MongoDB)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-backend-to-db
+  namespace: {{ .Values.global.namespaces.db }}
+  labels:
+    {{- include "medimesh.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      tier: database
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              medimesh/tier: backend
+      ports:
+        - protocol: TCP
+          port: 27017
+---
+# Allow: Backend egress to database namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-egress-to-db
+  namespace: {{ .Values.global.namespaces.backend }}
+  labels:
+    {{- include "medimesh.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      tier: backend
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              medimesh/tier: database
+      ports:
+        - protocol: TCP
+          port: 27017
+---
+# Allow: MongoDB internal replication
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: db-internal-replication
+  namespace: {{ .Values.global.namespaces.db }}
+  labels:
+    {{- include "medimesh.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      tier: database
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              tier: database
+      ports:
+        - protocol: TCP
+          port: 27017
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              tier: database
+      ports:
+        - protocol: TCP
+          port: 27017
+---
+# Allow: DNS egress — all namespaces
+{{- range $ns := list .Values.global.namespaces.frontend .Values.global.namespaces.backend .Values.global.namespaces.db }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+  namespace: {{ $ns }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+{{- end }}
+---
+# Allow: Frontend ingress (gateway/external)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-allow-ingress
+  namespace: {{ .Values.global.namespaces.frontend }}
+spec:
+  podSelector:
+    matchLabels:
+      tier: frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - {}
