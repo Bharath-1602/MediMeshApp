@@ -62,7 +62,7 @@ spec:
         # Log aggregator sidecar
         - name: log-sidecar
           image: {{ .Values.sidecar.image }}
-          command: ["sh", "-c", "tail -F /var/log/nginx/access.log 2>/dev/null & tail -F /var/log/nginx/error.log 2>/dev/null & wait"]
+          command: ["sh", "-c", "touch /var/log/nginx/access.log /var/log/nginx/error.log && tail -F /var/log/nginx/access.log /var/log/nginx/error.log"]
           volumeMounts:
             - name: nginx-logs
               mountPath: /var/log/nginx
