@@ -151,3 +151,42 @@ spec:
           port: 443
         - protocol: TCP
           port: 6443
+---
+# Allow: NFS Provisioner egress to NFS server and Kubernetes API
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-nfs-provisioner-egress
+  namespace: {{ .Values.global.namespaces.db }}
+  labels:
+    {{- include "medimesh.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: nfs-client-provisioner
+      tier: storage
+  policyTypes:
+    - Egress
+  egress:
+    # NFS server (mount + portmapper)
+    - to:
+        - ipBlock:
+            cidr: {{ .Values.global.storage.nfs.server }}/32
+      ports:
+        - protocol: TCP
+          port: 2049
+        - protocol: UDP
+          port: 2049
+        - protocol: TCP
+          port: 111
+        - protocol: UDP
+          port: 111
+    # Kubernetes API server
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443
