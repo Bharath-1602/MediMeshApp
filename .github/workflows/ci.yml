@@ -1,0 +1,461 @@
+# ════════════════════════════════════════════════════════════════════
+# MediMesh — CI Pipeline (GitHub Actions)
+# ════════════════════════════════════════════════════════════════════
+# Stages: SonarQube → Snyk → Docker Build → Trivy Scan → Docker Push
+# All 11 microservices are built, scanned, and pushed in parallel
+# using GitHub Actions matrix strategy.
+# ════════════════════════════════════════════════════════════════════
+
+name: CI Pipeline
+
+on:
+  push:
+    branches: ["main", "master", "feature/ci-pipeline"]
+    tags: ["v*.*.*"]
+  pull_request:
+    branches: ["main", "master"]
+  workflow_dispatch:
+
+# ─── Global Environment ────────────────────────────────────────────
+env:
+  DOCKER_HUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════
+  # ① SonarQube — Code Quality Analysis
+  # ═══════════════════════════════════════════════════════════════
+  sonarqube:
+    name: "① SonarQube Scan"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v2
+        env:
+          SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONARQUBE_URL }}
+
+      - name: Send Email on Failure
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "❌ MediMesh CI Failed — SonarQube Scan"
+          to: ${{ secrets.ALERT_EMAIL }}
+          from: MediMesh CI Pipeline
+          body: |
+            ❌ The SonarQube code quality scan FAILED for MediMesh.
+
+            🔀 Branch : ${{ github.ref_name }}
+            📝 Commit : ${{ github.sha }}
+            👤 Author : ${{ github.actor }}
+
+            🔗 Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Please check the workflow logs for details.
+
+  # ═══════════════════════════════════════════════════════════════
+  # ② Snyk — Dependency Vulnerability Scan
+  # ═══════════════════════════════════════════════════════════════
+  snyk:
+    name: "② Snyk Vulnerability Scan"
+    needs: sonarqube
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install Dependencies for All Microservices
+        run: |
+          echo "════════════════════════════════════════════════════════"
+          echo "  Installing dependencies for all 11 microservices"
+          echo "════════════════════════════════════════════════════════"
+
+          # Backend services (services/medimesh-*)
+          for dir in services/medimesh-*/; do
+            if [ -f "$dir/package.json" ]; then
+              echo "📦 Installing: $dir"
+              (cd "$dir" && npm install --no-audit --no-fund)
+            fi
+          done
+
+          # BFF service
+          if [ -f "medimesh-bff/package.json" ]; then
+            echo "📦 Installing: medimesh-bff/"
+            (cd medimesh-bff && npm install --no-audit --no-fund)
+          fi
+
+          # Frontend
+          if [ -f "medimesh-frontend/package.json" ]; then
+            echo "📦 Installing: medimesh-frontend/"
+            (cd medimesh-frontend && npm install --no-audit --no-fund)
+          fi
+
+          echo "✅ All dependencies installed."
+
+      - name: Run Snyk to Check for Vulnerabilities
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --all-projects --severity-threshold=high
+          command: test
+
+      - name: Upload Snyk Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snyk-results
+          path: snyk-*.json
+          if-no-files-found: ignore
+
+      - name: Send Email on Failure
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "❌ MediMesh CI Failed — Snyk Vulnerability Scan"
+          to: ${{ secrets.ALERT_EMAIL }}
+          from: MediMesh CI Pipeline
+          body: |
+            ❌ The Snyk dependency scan FAILED for MediMesh.
+            High or critical vulnerabilities were detected in project dependencies.
+
+            🔀 Branch : ${{ github.ref_name }}
+            📝 Commit : ${{ github.sha }}
+            👤 Author : ${{ github.actor }}
+
+            🔗 Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  # ═══════════════════════════════════════════════════════════════
+  # ③ Docker Build — Build All 11 Microservice Images (Matrix)
+  # ═══════════════════════════════════════════════════════════════
+  docker_build:
+    name: "③ Build — ${{ matrix.service }}"
+    needs: snyk
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.set_tag.outputs.TAG }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: auth
+            context: services/medimesh-auth
+            image: medimesh_medimesh-auth
+          - service: user
+            context: services/medimesh-user
+            image: medimesh_medimesh-user
+          - service: doctor
+            context: services/medimesh-doctor
+            image: medimesh_medimesh-doctor
+          - service: appointment
+            context: services/medimesh-appointment
+            image: medimesh_medimesh-appointment
+          - service: vitals
+            context: services/medimesh-vitals
+            image: medimesh_medimesh-vitals
+          - service: pharmacy
+            context: services/medimesh-pharmacy
+            image: medimesh_medimesh-pharmacy
+          - service: ambulance
+            context: services/medimesh-ambulance
+            image: medimesh_medimesh-ambulance
+          - service: complaint
+            context: services/medimesh-complaint
+            image: medimesh_medimesh-complaint
+          - service: forum
+            context: services/medimesh-forum
+            image: medimesh_medimesh-forum
+          - service: bff
+            context: medimesh-bff
+            image: medimesh_medimesh-bff
+          - service: frontend
+            context: medimesh-frontend
+            image: medimesh_medimesh-frontend
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Determine Image Tag
+        id: set_tag
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "🏷️  Using git semantic tag..."
+            echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "🔖 Using git short SHA as tag..."
+            echo "TAG=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          fi
+          echo "📌 Image Tag: $(cat $GITHUB_OUTPUT | grep TAG | cut -d'=' -f2)"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker Image
+        run: |
+          echo "🐳 Building: ${{ env.DOCKER_HUB_USER }}/${{ matrix.image }}:${{ steps.set_tag.outputs.TAG }}"
+          docker build \
+            -t ${{ env.DOCKER_HUB_USER }}/${{ matrix.image }}:${{ steps.set_tag.outputs.TAG }} \
+            -f ${{ matrix.context }}/Dockerfile \
+            ${{ matrix.context }}
+
+      - name: Save Docker Image as Artifact
+        run: |
+          docker save ${{ env.DOCKER_HUB_USER }}/${{ matrix.image }}:${{ steps.set_tag.outputs.TAG }} \
+            > ${{ matrix.service }}-image.tar
+
+      - name: Upload Image Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image-${{ matrix.service }}
+          path: ${{ matrix.service }}-image.tar
+          retention-days: 1
+
+      - name: Send Email on Failure
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "❌ MediMesh CI Failed — Docker Build (${{ matrix.service }})"
+          to: ${{ secrets.ALERT_EMAIL }}
+          from: MediMesh CI Pipeline
+          body: |
+            ❌ Docker build FAILED for service: ${{ matrix.service }}
+
+            🐳 Image  : ${{ env.DOCKER_HUB_USER }}/${{ matrix.image }}
+            📂 Context: ${{ matrix.context }}
+            🔀 Branch : ${{ github.ref_name }}
+            📝 Commit : ${{ github.sha }}
+            👤 Author : ${{ github.actor }}
+
+            🔗 Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  # ═══════════════════════════════════════════════════════════════
+  # ④ Trivy — Container Image Vulnerability Scan (Matrix)
+  # ═══════════════════════════════════════════════════════════════
+  image_scan:
+    name: "④ Trivy — ${{ matrix.service }}"
+    needs: docker_build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: auth
+            image: medimesh_medimesh-auth
+          - service: user
+            image: medimesh_medimesh-user
+          - service: doctor
+            image: medimesh_medimesh-doctor
+          - service: appointment
+            image: medimesh_medimesh-appointment
+          - service: vitals
+            image: medimesh_medimesh-vitals
+          - service: pharmacy
+            image: medimesh_medimesh-pharmacy
+          - service: ambulance
+            image: medimesh_medimesh-ambulance
+          - service: complaint
+            image: medimesh_medimesh-complaint
+          - service: forum
+            image: medimesh_medimesh-forum
+          - service: bff
+            image: medimesh_medimesh-bff
+          - service: frontend
+            image: medimesh_medimesh-frontend
+    steps:
+      - name: Download Image Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image-${{ matrix.service }}
+
+      - name: Load Docker Image
+        run: docker load < ${{ matrix.service }}-image.tar
+
+      - name: Run Trivy Vulnerability Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ env.DOCKER_HUB_USER }}/${{ matrix.image }}:${{ needs.docker_build.outputs.image_tag }}"
+          format: "table"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+      - name: Send Email on Failure
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "❌ MediMesh CI Failed — Trivy Image Scan (${{ matrix.service }})"
+          to: ${{ secrets.ALERT_EMAIL }}
+          from: MediMesh CI Pipeline
+          body: |
+            ❌ Trivy found HIGH/CRITICAL vulnerabilities in: ${{ matrix.service }}
+
+            🐳 Image  : ${{ env.DOCKER_HUB_USER }}/${{ matrix.image }}:${{ needs.docker_build.outputs.image_tag }}
+            🔀 Branch : ${{ github.ref_name }}
+            📝 Commit : ${{ github.sha }}
+            👤 Author : ${{ github.actor }}
+
+            🔗 Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            Please review the Trivy scan output in the workflow logs.
+
+  # ═══════════════════════════════════════════════════════════════
+  # ⑤ Docker Push — Push All Images to Docker Hub (Matrix)
+  # ═══════════════════════════════════════════════════════════════
+  docker_push:
+    name: "⑤ Push — ${{ matrix.service }}"
+    needs: [docker_build, image_scan]
+    runs-on: ubuntu-latest
+    # Only push on direct pushes and manual dispatch, NOT on pull requests
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: auth
+            image: medimesh_medimesh-auth
+          - service: user
+            image: medimesh_medimesh-user
+          - service: doctor
+            image: medimesh_medimesh-doctor
+          - service: appointment
+            image: medimesh_medimesh-appointment
+          - service: vitals
+            image: medimesh_medimesh-vitals
+          - service: pharmacy
+            image: medimesh_medimesh-pharmacy
+          - service: ambulance
+            image: medimesh_medimesh-ambulance
+          - service: complaint
+            image: medimesh_medimesh-complaint
+          - service: forum
+            image: medimesh_medimesh-forum
+          - service: bff
+            image: medimesh_medimesh-bff
+          - service: frontend
+            image: medimesh_medimesh-frontend
+    steps:
+      - name: Download Image Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image-${{ matrix.service }}
+
+      - name: Load Docker Image
+        run: docker load < ${{ matrix.service }}-image.tar
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Tag and Push Docker Image
+        run: |
+          IMAGE="${{ env.DOCKER_HUB_USER }}/${{ matrix.image }}"
+          TAG="${{ needs.docker_build.outputs.image_tag }}"
+
+          echo "🚀 Pushing ${IMAGE}:${TAG}"
+          docker tag ${IMAGE}:${TAG} ${IMAGE}:latest
+          docker push ${IMAGE}:${TAG}
+          docker push ${IMAGE}:latest
+          echo "✅ ${IMAGE} pushed with tags: ${TAG}, latest"
+
+      - name: Send Email on Failure
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "❌ MediMesh CI Failed — Docker Push (${{ matrix.service }})"
+          to: ${{ secrets.ALERT_EMAIL }}
+          from: MediMesh CI Pipeline
+          body: |
+            ❌ Failed to push Docker image for: ${{ matrix.service }}
+
+            🐳 Image  : ${{ env.DOCKER_HUB_USER }}/${{ matrix.image }}
+            🔀 Branch : ${{ github.ref_name }}
+            📝 Commit : ${{ github.sha }}
+            👤 Author : ${{ github.actor }}
+
+            🔗 Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  # ═══════════════════════════════════════════════════════════════
+  # ✅ Success Notification
+  # ═══════════════════════════════════════════════════════════════
+  notify_success:
+    name: "✅ Pipeline Success Notification"
+    needs: [docker_build, docker_push]
+    runs-on: ubuntu-latest
+    if: success() && github.event_name != 'pull_request'
+    steps:
+      - name: Send Final Success Summary Email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "✅ MediMesh CI Pipeline — All Stages Passed!"
+          to: ${{ secrets.ALERT_EMAIL }}
+          from: MediMesh CI Pipeline
+          body: |
+            ════════════════════════════════════════════════════════════
+            ✅  MediMesh CI Pipeline — SUCCESS
+            ════════════════════════════════════════════════════════════
+
+            🔀 Branch : ${{ github.ref_name }}
+            📝 Commit : ${{ github.sha }}
+            🏷️  Tag    : ${{ needs.docker_build.outputs.image_tag }}
+            👤 Author : ${{ github.actor }}
+
+            ────────────────────────────────────────────────────────────
+            📦 All 11 Docker images built, scanned, and pushed:
+            ────────────────────────────────────────────────────────────
+              ✅ ${{ env.DOCKER_HUB_USER }}/medimesh_medimesh-auth
+              ✅ ${{ env.DOCKER_HUB_USER }}/medimesh_medimesh-user
+              ✅ ${{ env.DOCKER_HUB_USER }}/medimesh_medimesh-doctor
+              ✅ ${{ env.DOCKER_HUB_USER }}/medimesh_medimesh-appointment
+              ✅ ${{ env.DOCKER_HUB_USER }}/medimesh_medimesh-vitals
+              ✅ ${{ env.DOCKER_HUB_USER }}/medimesh_medimesh-pharmacy
+              ✅ ${{ env.DOCKER_HUB_USER }}/medimesh_medimesh-ambulance
+              ✅ ${{ env.DOCKER_HUB_USER }}/medimesh_medimesh-complaint
+              ✅ ${{ env.DOCKER_HUB_USER }}/medimesh_medimesh-forum
+              ✅ ${{ env.DOCKER_HUB_USER }}/medimesh_medimesh-bff
+              ✅ ${{ env.DOCKER_HUB_USER }}/medimesh_medimesh-frontend
+
+            ────────────────────────────────────────────────────────────
+            🛡️  Security Scans Passed:
+            ────────────────────────────────────────────────────────────
+              ✅ SonarQube  — Code quality analysis
+              ✅ Snyk       — Dependency vulnerability scan
+              ✅ Trivy      — Container image vulnerability scan
+
+            🔗 Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            ════════════════════════════════════════════════════════════
