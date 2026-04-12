@@ -1,10 +1,3 @@
-# ════════════════════════════════════════════════════════════════════
-# MediMesh — CI Pipeline (GitHub Actions)
-# ════════════════════════════════════════════════════════════════════
-# Stages: SonarQube → Snyk → Docker Build → Trivy Scan → Docker Push
-# All 11 microservices are built, scanned, and pushed in parallel
-# using GitHub Actions matrix strategy.
-# ════════════════════════════════════════════════════════════════════
 
 name: CI Pipeline
 
