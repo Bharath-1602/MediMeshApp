@@ -31,7 +31,7 @@ jobs:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-      SONARQUBE_TOKEN: ${{ secrets.SONARQUBE_TOKE }}
+      SONARQUBE_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
       SONARQUBE_URL: ${{ secrets.SONARQUBE_URL }}
       SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
       SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
