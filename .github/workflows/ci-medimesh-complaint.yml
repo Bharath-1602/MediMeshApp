@@ -1,0 +1,38 @@
+# ════════════════════════════════════════════════════════════════════
+# MediMesh Complaint — CI Pipeline (calls reusable template)
+# ════════════════════════════════════════════════════════════════════
+
+name: "CI — medimesh-complaint"
+
+on:
+  push:
+    branches: [main, feature/ci-pipeline-v2]
+    paths:
+      - "services/medimesh-complaint/**"
+      - ".github/workflows/ci-medimesh-complaint.yml"
+      - ".github/workflows/template-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "services/medimesh-complaint/**"
+      - ".github/workflows/ci-medimesh-complaint.yml"
+      - ".github/workflows/template-ci.yml"
+
+jobs:
+  call-template:
+    uses: ./.github/workflows/template-ci.yml
+    with:
+      service_name: medimesh-complaint
+      service_path: services/medimesh-complaint
+      docker_image_name: medimesh_medimesh-complaint
+      sonar_project_key: medimesh-complaint
+      node_version: "20"
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      SONARQUBE_TOKEN: ${{ secrets.SONARQUBE_TOKE }}
+      SONARQUBE_URL: ${{ secrets.SONARQUBE_URL }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}

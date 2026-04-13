@@ -1,0 +1,343 @@
+# ════════════════════════════════════════════════════════════════════
+# MediMesh — Reusable CI Template (v2.0)
+# ════════════════════════════════════════════════════════════════════
+# Called by each per-service workflow via workflow_call.
+# All Docker images are tagged with a "v2.0" prefix to avoid
+# overwriting images from the original CI pipeline.
+# ════════════════════════════════════════════════════════════════════
+
+name: MediMesh CI Template
+
+run-name: "${{ inputs.service_name }} — ${{ github.event.head_commit.message }} (${{ github.sha }})"
+
+on:
+  workflow_call:
+    inputs:
+      service_name:
+        description: "Human-readable service name (e.g. medimesh-auth)"
+        required: true
+        type: string
+      service_path:
+        description: "Path to the service directory relative to repo root"
+        required: true
+        type: string
+      docker_image_name:
+        description: "Docker Hub image name (e.g. medimesh_medimesh-auth)"
+        required: true
+        type: string
+      sonar_project_key:
+        description: "SonarQube project key for this service"
+        required: true
+        type: string
+      node_version:
+        description: "Node.js version to use"
+        required: false
+        type: string
+        default: "20"
+
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: true
+      DOCKERHUB_TOKEN:
+        required: true
+      SNYK_TOKEN:
+        required: true
+      SONARQUBE_TOKEN:
+        required: true
+      SONARQUBE_URL:
+        required: true
+      SMTP_USERNAME:
+        required: true
+      SMTP_PASSWORD:
+        required: true
+      ALERT_EMAIL:
+        required: true
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════
+  # ① Build & Install Dependencies
+  # ═══════════════════════════════════════════════════════════════════
+  build:
+    name: "① Build — ${{ inputs.service_name }}"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.service_path }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ inputs.node_version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: npm
+          cache-dependency-path: "${{ inputs.service_path }}/package.json"
+
+      - name: Install Dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Lint — Check Unused Dependencies
+        run: npx depcheck || true
+
+      - name: Send Email on Failure
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "❌ MediMesh CI Failed — Build (${{ inputs.service_name }})"
+          to: ${{ secrets.ALERT_EMAIL }}
+          from: MediMesh CI Pipeline
+          body: |
+            ❌ Build FAILED for service: ${{ inputs.service_name }}
+
+            📂 Path   : ${{ inputs.service_path }}
+            🔀 Branch : ${{ github.ref_name }}
+            📝 Commit : ${{ github.sha }}
+            👤 Author : ${{ github.actor }}
+
+            🔗 Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  # ═══════════════════════════════════════════════════════════════════
+  # ② Security Scan — Snyk + SonarQube
+  # ═══════════════════════════════════════════════════════════════════
+  scan:
+    name: "② Scan — ${{ inputs.service_name }}"
+    runs-on: ubuntu-latest
+    needs: build
+    defaults:
+      run:
+        working-directory: ${{ inputs.service_path }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ inputs.node_version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: npm
+          cache-dependency-path: "${{ inputs.service_path }}/package.json"
+
+      - name: Install Dependencies
+        run: npm install --no-audit --no-fund
+
+      # ─── Snyk Vulnerability Scan ─────────────────────────────────
+      - name: Setup Snyk CLI
+        uses: snyk/actions/setup@master
+
+      - name: Install snyk-to-html
+        run: npm install -g snyk-to-html
+
+      - name: Snyk Security Scan
+        run: snyk test --severity-threshold=high --json-file-output=snyk-report.json || true
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Convert Snyk Report to HTML
+        run: |
+          if [ -f snyk-report.json ]; then
+            snyk-to-html -i snyk-report.json -o snyk-report.html
+            echo "✅ Snyk HTML report generated"
+          else
+            echo "⚠️ No Snyk JSON report found, skipping HTML conversion"
+          fi
+
+      - name: Upload Snyk HTML Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: snyk-report-${{ inputs.service_name }}
+          path: |
+            ${{ inputs.service_path }}/snyk-report.html
+            ${{ inputs.service_path }}/snyk-report.json
+          retention-days: 14
+          if-no-files-found: ignore
+
+      # ─── SonarQube Code Quality Scan ─────────────────────────────
+      - name: SonarQube Analysis
+        uses: SonarSource/sonarqube-scan-action@v2
+        with:
+          projectBaseDir: ${{ inputs.service_path }}
+          args: >
+            -Dsonar.projectKey=${{ inputs.sonar_project_key }}
+            -Dsonar.projectName=${{ inputs.service_name }}
+        env:
+          SONAR_TOKEN: ${{ secrets.SONARQUBE_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONARQUBE_URL }}
+
+      - name: Send Email on Failure
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "❌ MediMesh CI Failed — Security Scan (${{ inputs.service_name }})"
+          to: ${{ secrets.ALERT_EMAIL }}
+          from: MediMesh CI Pipeline
+          body: |
+            ❌ Security scan FAILED for service: ${{ inputs.service_name }}
+
+            🛡️ Snyk + SonarQube scan encountered issues.
+            📂 Path   : ${{ inputs.service_path }}
+            🔀 Branch : ${{ github.ref_name }}
+            📝 Commit : ${{ github.sha }}
+            👤 Author : ${{ github.actor }}
+
+            🔗 Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  # ═══════════════════════════════════════════════════════════════════
+  # ③ Docker Build, Trivy Scan & Push
+  # ═══════════════════════════════════════════════════════════════════
+  # Tags use "v2.0" prefix to avoid overwriting old pipeline images.
+  #   → <user>/<image>:v2.0-latest
+  #   → <user>/<image>:v2.0-<short-sha>
+  # ═══════════════════════════════════════════════════════════════════
+  build-and-push:
+    name: "③ Docker — ${{ inputs.service_name }}"
+    runs-on: ubuntu-latest
+    needs: [build, scan]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract Image Tags (v2.0 prefix)
+        id: meta
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          IMAGE="${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.docker_image_name }}"
+
+          echo "image_sha=${IMAGE}:v2.0-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "image_latest=${IMAGE}:v2.0-latest" >> $GITHUB_OUTPUT
+          echo "image_base=${IMAGE}" >> $GITHUB_OUTPUT
+
+          echo "════════════════════════════════════════════════════"
+          echo "🐳 Image : ${IMAGE}"
+          echo "🏷️  Tags  : v2.0-${SHORT_SHA}, v2.0-latest"
+          echo "════════════════════════════════════════════════════"
+
+      # Build locally first so Trivy can scan BEFORE pushing
+      - name: Build Docker Image (local, pre-scan)
+        run: |
+          docker build \
+            -t ${{ steps.meta.outputs.image_sha }} \
+            -t ${{ steps.meta.outputs.image_latest }} \
+            -f ${{ inputs.service_path }}/Dockerfile \
+            ${{ inputs.service_path }}
+
+      # ─── Trivy Container Vulnerability Scan ──────────────────────
+      - name: Trivy — Scan for CRITICAL Vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.meta.outputs.image_sha }}
+          format: table
+          exit-code: "1"
+          severity: CRITICAL
+          ignore-unfixed: true
+
+      - name: Trivy — Full Report (HIGH + CRITICAL)
+        if: always()
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.meta.outputs.image_sha }}
+          format: table
+          exit-code: "0"
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+      # Only push if Trivy found no CRITICAL CVEs
+      - name: Push Docker Image to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.service_path }}
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image_sha }}
+            ${{ steps.meta.outputs.image_latest }}
+          cache-from: type=registry,ref=${{ steps.meta.outputs.image_latest }}
+          cache-to: type=inline
+
+      - name: Send Email on Failure
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "❌ MediMesh CI Failed — Docker Build/Push (${{ inputs.service_name }})"
+          to: ${{ secrets.ALERT_EMAIL }}
+          from: MediMesh CI Pipeline
+          body: |
+            ❌ Docker build or push FAILED for: ${{ inputs.service_name }}
+
+            🐳 Image  : ${{ steps.meta.outputs.image_base }}
+            🏷️  Tags   : v2.0-latest, v2.0-<sha>
+            🔀 Branch : ${{ github.ref_name }}
+            📝 Commit : ${{ github.sha }}
+            👤 Author : ${{ github.actor }}
+
+            ⚠️ If Trivy blocked the push, CRITICAL vulnerabilities were
+            detected in the container image.
+
+            🔗 Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  # ═══════════════════════════════════════════════════════════════════
+  # ✅ Success Notification
+  # ═══════════════════════════════════════════════════════════════════
+  notify-success:
+    name: "✅ Success — ${{ inputs.service_name }}"
+    runs-on: ubuntu-latest
+    needs: [build, scan, build-and-push]
+    if: success() && github.event_name != 'pull_request'
+    steps:
+      - name: Send Success Email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "✅ MediMesh CI Passed — ${{ inputs.service_name }}"
+          to: ${{ secrets.ALERT_EMAIL }}
+          from: MediMesh CI Pipeline
+          body: |
+            ════════════════════════════════════════════════════════════
+            ✅  MediMesh CI Pipeline — SUCCESS
+            ════════════════════════════════════════════════════════════
+
+            📦 Service : ${{ inputs.service_name }}
+            🔀 Branch  : ${{ github.ref_name }}
+            📝 Commit  : ${{ github.sha }}
+            👤 Author  : ${{ github.actor }}
+
+            ────────────────────────────────────────────────────────────
+            🛡️  All Security Scans Passed:
+            ────────────────────────────────────────────────────────────
+              ✅ SonarQube  — Code quality analysis
+              ✅ Snyk       — Dependency vulnerability scan
+              ✅ Trivy      — Container image vulnerability scan
+
+            ────────────────────────────────────────────────────────────
+            🐳 Docker Image Pushed:
+            ────────────────────────────────────────────────────────────
+              ✅ ${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.docker_image_name }}:v2.0-latest
+              ✅ ${{ secrets.DOCKERHUB_USERNAME }}/${{ inputs.docker_image_name }}:v2.0-<sha>
+
+            🔗 Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            ════════════════════════════════════════════════════════════

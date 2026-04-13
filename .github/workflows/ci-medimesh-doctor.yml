@@ -1,0 +1,38 @@
+# ════════════════════════════════════════════════════════════════════
+# MediMesh Doctor — CI Pipeline (calls reusable template)
+# ════════════════════════════════════════════════════════════════════
+
+name: "CI — medimesh-doctor"
+
+on:
+  push:
+    branches: [main, feature/ci-pipeline-v2]
+    paths:
+      - "services/medimesh-doctor/**"
+      - ".github/workflows/ci-medimesh-doctor.yml"
+      - ".github/workflows/template-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "services/medimesh-doctor/**"
+      - ".github/workflows/ci-medimesh-doctor.yml"
+      - ".github/workflows/template-ci.yml"
+
+jobs:
+  call-template:
+    uses: ./.github/workflows/template-ci.yml
+    with:
+      service_name: medimesh-doctor
+      service_path: services/medimesh-doctor
+      docker_image_name: medimesh_medimesh-doctor
+      sonar_project_key: medimesh-doctor
+      node_version: "20"
+    secrets:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      SONARQUBE_TOKEN: ${{ secrets.SONARQUBE_TOKE }}
+      SONARQUBE_URL: ${{ secrets.SONARQUBE_URL }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
