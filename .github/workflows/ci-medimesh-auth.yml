@@ -1,12 +1,12 @@
 # ════════════════════════════════════════════════════════════════════
-# MediMesh Auth — CI Pipeline (calls reusable template)
+# MediMesh Auth — CI Pipeline v3 (calls reusable template)
 # ════════════════════════════════════════════════════════════════════
 
 name: "CI — medimesh-auth"
 
 on:
   push:
-    branches: [main, feature/ci-pipeline-v2]
+    branches: [main, feature/ci-pipeline-v3]
     paths:
       - "services/medimesh-auth/**"
       - ".github/workflows/ci-medimesh-auth.yml"
@@ -17,6 +17,9 @@ on:
       - "services/medimesh-auth/**"
       - ".github/workflows/ci-medimesh-auth.yml"
       - ".github/workflows/template-ci.yml"
+
+permissions:
+  contents: write
 
 jobs:
   call-template:

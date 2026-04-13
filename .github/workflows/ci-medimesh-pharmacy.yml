@@ -1,12 +1,12 @@
 # ════════════════════════════════════════════════════════════════════
-# MediMesh Pharmacy — CI Pipeline (calls reusable template)
+# MediMesh Pharmacy — CI Pipeline v3 (calls reusable template)
 # ════════════════════════════════════════════════════════════════════
 
 name: "CI — medimesh-pharmacy"
 
 on:
   push:
-    branches: [main, feature/ci-pipeline-v2]
+    branches: [main, feature/ci-pipeline-v3]
     paths:
       - "services/medimesh-pharmacy/**"
       - ".github/workflows/ci-medimesh-pharmacy.yml"
@@ -17,6 +17,9 @@ on:
       - "services/medimesh-pharmacy/**"
       - ".github/workflows/ci-medimesh-pharmacy.yml"
       - ".github/workflows/template-ci.yml"
+
+permissions:
+  contents: write
 
 jobs:
   call-template:

@@ -1,12 +1,12 @@
 # ════════════════════════════════════════════════════════════════════
-# MediMesh Appointment — CI Pipeline (calls reusable template)
+# MediMesh Appointment — CI Pipeline v3 (calls reusable template)
 # ════════════════════════════════════════════════════════════════════
 
 name: "CI — medimesh-appointment"
 
 on:
   push:
-    branches: [main, feature/ci-pipeline-v2]
+    branches: [main, feature/ci-pipeline-v3]
     paths:
       - "services/medimesh-appointment/**"
       - ".github/workflows/ci-medimesh-appointment.yml"
@@ -17,6 +17,9 @@ on:
       - "services/medimesh-appointment/**"
       - ".github/workflows/ci-medimesh-appointment.yml"
       - ".github/workflows/template-ci.yml"
+
+permissions:
+  contents: write
 
 jobs:
   call-template:

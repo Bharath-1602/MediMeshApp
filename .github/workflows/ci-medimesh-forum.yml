@@ -1,12 +1,12 @@
 # ════════════════════════════════════════════════════════════════════
-# MediMesh Forum — CI Pipeline (calls reusable template)
+# MediMesh Forum — CI Pipeline v3 (calls reusable template)
 # ════════════════════════════════════════════════════════════════════
 
 name: "CI — medimesh-forum"
 
 on:
   push:
-    branches: [main, feature/ci-pipeline-v2]
+    branches: [main, feature/ci-pipeline-v3]
     paths:
       - "services/medimesh-forum/**"
       - ".github/workflows/ci-medimesh-forum.yml"
@@ -17,6 +17,9 @@ on:
       - "services/medimesh-forum/**"
       - ".github/workflows/ci-medimesh-forum.yml"
       - ".github/workflows/template-ci.yml"
+
+permissions:
+  contents: write
 
 jobs:
   call-template:

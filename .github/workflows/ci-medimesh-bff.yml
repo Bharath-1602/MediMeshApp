@@ -1,12 +1,12 @@
 # ════════════════════════════════════════════════════════════════════
-# MediMesh BFF — CI Pipeline (calls reusable template)
+# MediMesh BFF — CI Pipeline v3 (calls reusable template)
 # ════════════════════════════════════════════════════════════════════
 
 name: "CI — medimesh-bff"
 
 on:
   push:
-    branches: [main, feature/ci-pipeline-v2]
+    branches: [main, feature/ci-pipeline-v3]
     paths:
       - "medimesh-bff/**"
       - ".github/workflows/ci-medimesh-bff.yml"
@@ -17,6 +17,9 @@ on:
       - "medimesh-bff/**"
       - ".github/workflows/ci-medimesh-bff.yml"
       - ".github/workflows/template-ci.yml"
+
+permissions:
+  contents: write
 
 jobs:
   call-template:

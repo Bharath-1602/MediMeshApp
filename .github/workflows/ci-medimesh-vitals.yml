@@ -1,12 +1,12 @@
 # ════════════════════════════════════════════════════════════════════
-# MediMesh Vitals — CI Pipeline (calls reusable template)
+# MediMesh Vitals — CI Pipeline v3 (calls reusable template)
 # ════════════════════════════════════════════════════════════════════
 
 name: "CI — medimesh-vitals"
 
 on:
   push:
-    branches: [main, feature/ci-pipeline-v2]
+    branches: [main, feature/ci-pipeline-v3]
     paths:
       - "services/medimesh-vitals/**"
       - ".github/workflows/ci-medimesh-vitals.yml"
@@ -17,6 +17,9 @@ on:
       - "services/medimesh-vitals/**"
       - ".github/workflows/ci-medimesh-vitals.yml"
       - ".github/workflows/template-ci.yml"
+
+permissions:
+  contents: write
 
 jobs:
   call-template:

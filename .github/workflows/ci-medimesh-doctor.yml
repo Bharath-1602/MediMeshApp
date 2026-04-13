@@ -1,12 +1,12 @@
 # ════════════════════════════════════════════════════════════════════
-# MediMesh Doctor — CI Pipeline (calls reusable template)
+# MediMesh Doctor — CI Pipeline v3 (calls reusable template)
 # ════════════════════════════════════════════════════════════════════
 
 name: "CI — medimesh-doctor"
 
 on:
   push:
-    branches: [main, feature/ci-pipeline-v2]
+    branches: [main, feature/ci-pipeline-v3]
     paths:
       - "services/medimesh-doctor/**"
       - ".github/workflows/ci-medimesh-doctor.yml"
@@ -17,6 +17,9 @@ on:
       - "services/medimesh-doctor/**"
       - ".github/workflows/ci-medimesh-doctor.yml"
       - ".github/workflows/template-ci.yml"
+
+permissions:
+  contents: write
 
 jobs:
   call-template:
