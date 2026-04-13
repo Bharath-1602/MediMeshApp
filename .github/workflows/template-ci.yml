@@ -1,15 +1,3 @@
-# ════════════════════════════════════════════════════════════════════
-# MediMesh — Reusable CI Template (v3.0)
-# ════════════════════════════════════════════════════════════════════
-# Pipeline Order:
-#   ① SonarQube → ② NPM Build → ③ Snyk → ④ Docker Build
-#   → ⑤ Trivy Scan → ⑥ Docker Push
-#
-# ● NO LINTING anywhere in this pipeline
-# ● Semantic Versioning (auto-increment based on commit messages)
-# ● Snyk & Trivy use continue-on-error (don't fail pipeline)
-# ════════════════════════════════════════════════════════════════════
-
 name: MediMesh CI Template
 
 run-name: "${{ inputs.service_name }} — ${{ github.event.head_commit.message }} (${{ github.sha }})"
@@ -210,20 +198,6 @@ jobs:
           if-no-files-found: ignore
 
 
-  # ═══════════════════════════════════════════════════════════════════
-  # ④⑤⑥ Docker Build → Trivy Scan → Docker Push
-  # ═══════════════════════════════════════════════════════════════════
-  # Semantic Versioning Tags:
-  #   → <user>/<image>:v<major>.<minor>.<patch>
-  #   → <user>/<image>:v<major>.<minor>.<patch>-<sha>
-  #   → <user>/<image>:latest
-  #
-  # Version auto-increment rules:
-  #   → PATCH : default on every push
-  #   → MINOR : commit message starts with "feat:" or "feature:"
-  #   → MAJOR : commit message starts with "breaking:" or
-  #             contains "BREAKING CHANGE"
-  # ═══════════════════════════════════════════════════════════════════
   docker:
     name: "④⑤⑥ Docker — ${{ inputs.service_name }}"
     runs-on: ubuntu-latest
